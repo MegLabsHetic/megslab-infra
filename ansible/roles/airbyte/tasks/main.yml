@@ -22,29 +22,30 @@
 
 - name: Verifier si abctl est deja installe
   ansible.builtin.command: abctl version
-  register: abctl_present
+  register: airbyte_abctl_present
   changed_when: false
   failed_when: false
 
 - name: Telecharger abctl
-  when: abctl_version not in (abctl_present.stdout | default(''))
+  when: airbyte_abctl_version not in (airbyte_abctl_present.stdout | default(''))
   ansible.builtin.unarchive:
     src: >-
-      https://github.com/airbytehq/abctl/releases/download/{{ abctl_version }}/abctl-{{ abctl_version }}-linux-amd64.tar.gz
+      https://github.com/airbytehq/abctl/releases/download/{{ airbyte_abctl_version }}/abctl-{{ airbyte_abctl_version }}-linux-amd64.tar.gz
     dest: /tmp
     remote_src: true
-    creates: /tmp/abctl-{{ abctl_version }}-linux-amd64/abctl
+    creates: /tmp/abctl-{{ airbyte_abctl_version }}-linux-amd64/abctl
 
 - name: Installer abctl
-  when: abctl_version not in (abctl_present.stdout | default(''))
+  when: airbyte_abctl_version not in (airbyte_abctl_present.stdout | default(''))
   ansible.builtin.copy:
-    src: /tmp/abctl-{{ abctl_version }}-linux-amd64/abctl
+    src: /tmp/abctl-{{ airbyte_abctl_version }}-linux-amd64/abctl
     dest: /usr/local/bin/abctl
     mode: "0755"
     remote_src: true
 
 - name: Verifier si le cluster tourne deja
   ansible.builtin.command: abctl local status
+  become: true
   become_user: "{{ utilisateur_app }}"
   register: airbyte_statut
   changed_when: false
@@ -60,6 +61,7 @@
       abctl local install
       --host {{ airbyte_hote }}
       --port {{ airbyte_port }}
+  become: true
   become_user: "{{ utilisateur_app }}"
   register: airbyte_installation
   changed_when: true
@@ -69,6 +71,7 @@
   # Ils ne sont pas choisis par nous : abctl les genere. On les lit plutot que
   # de les fixer, et ils ne sont jamais ecrits dans le depot.
   ansible.builtin.command: abctl local credentials
+  become: true
   become_user: "{{ utilisateur_app }}"
   register: airbyte_identifiants
   changed_when: false

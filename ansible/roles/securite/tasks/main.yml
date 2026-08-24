@@ -69,13 +69,13 @@
 - name: Relire la configuration sshd effective
   ansible.builtin.command: sshd -T
   changed_when: false
-  register: sshd_effectif
+  register: securite_sshd_effectif
 
 - name: Verifier que l'authentification par mot de passe est bien coupee
   ansible.builtin.assert:
     that:
-      - "'passwordauthentication no' in sshd_effectif.stdout"
-      - "'permitrootlogin no' in sshd_effectif.stdout"
+      - "'passwordauthentication no' in securite_sshd_effectif.stdout"
+      - "'permitrootlogin no' in securite_sshd_effectif.stdout"
     fail_msg: >-
       sshd accepte encore les mots de passe ou la connexion root. Un autre
       fichier de sshd_config.d trie avant 00-durcissement.conf.
