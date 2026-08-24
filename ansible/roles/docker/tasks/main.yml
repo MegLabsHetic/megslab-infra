@@ -1,0 +1,70 @@
+---
+# Docker depuis le depot officiel, pas depuis le script d'installation : un
+# depot apt se met a jour, se verifie par signature, et se rejoue a l'identique.
+
+- name: Creer le repertoire des trousseaux apt
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Deposer la cle du depot Docker
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: "0644"
+
+- name: Declarer le depot Docker
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ docker_architecture }} signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/ubuntu {{ docker_nom_de_version }} stable
+    filename: docker
+    state: present
+
+- name: Installer Docker et le plugin compose
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+
+- name: Borner les journaux des conteneurs
+  # Sans cela un conteneur bavard remplit le disque : le pilote par defaut
+  # n'applique aucune rotation.
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    mode: "0644"
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {"max-size": "10m", "max-file": "3"}
+      }
+  notify: Redemarrer docker
+
+- name: Autoriser le compte de service a piloter Docker
+  # Appartenir au groupe docker equivaut a root sur l'hote. C'est assume ici
+  # pour un compte de service dedie, jamais pour un compte humain ordinaire.
+  ansible.builtin.user:
+    name: "{{ utilisateur_app }}"
+    groups: docker
+    append: true
+
+- name: Demarrer Docker
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Verifier que Docker repond
+  ansible.builtin.command: docker version --format '{{ "{{" }}.Server.Version{{ "}}" }}'
+  changed_when: false
+  register: docker_version
+
+- name: Afficher la version installee
+  ansible.builtin.debug:
+    msg: "Docker {{ docker_version.stdout }}"
