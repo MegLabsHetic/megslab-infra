@@ -1,0 +1,56 @@
+name: CI
+
+# Ce dépôt configure des machines : une erreur ne se voit pas à la compilation,
+# elle se voit en production. La CI vérifie donc la syntaxe, le style, et l'absence
+# de secret — mais n'applique jamais rien : aucun secret d'accès n'est exposé ici.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ansible:
+    name: Ansible - lint et syntaxe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer ansible et ansible-lint
+        run: pip install ansible-core ansible-lint
+
+      - name: Installer les collections
+        run: ansible-galaxy collection install -r ansible/requirements.yml
+        working-directory: .
+
+      - name: Lint
+        run: ansible-lint
+        working-directory: ansible
+
+      # Analyse le playbook sans se connecter a quoi que ce soit : attrape les
+      # fautes de frappe dans les noms de modules et de variables.
+      - name: Verification syntaxique
+        run: ansible-playbook site.yml --syntax-check
+        working-directory: ansible
+
+  secrets:
+    name: Recherche de secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitleaks compare des commits : sans l'historique complet, il ne voit
+          # que le dernier etat et laisse passer un secret deja committe.
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+permissions:
+  contents: read

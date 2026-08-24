@@ -1,0 +1,76 @@
+name: Configurer les serveurs
+
+# Déclenchement manuel uniquement. Une configuration serveur ne doit pas partir
+# sur un `git push` : on choisit la cible et le mode, et on assume l'exécution.
+#
+# Le mode `check` ne modifie rien et affiche ce qui changerait — c'est aussi
+# l'audit de conformité : une sortie sans changement signifie que le serveur est
+# conforme à ce dépôt.
+
+on:
+  workflow_dispatch:
+    inputs:
+      cible:
+        description: "Hôte ou groupe (--limit). `all` pour toutes les machines."
+        required: true
+        default: demo
+      mode:
+        description: "check = simulation, apply = application réelle"
+        required: true
+        default: check
+        type: choice
+        options: [check, apply]
+
+permissions:
+  contents: read
+
+concurrency:
+  # Deux exécutions simultanées sur la même machine se marcheraient dessus :
+  # apt se verrouille, et sshd peut être redémarré au milieu de l'autre run.
+  group: configurer-${{ inputs.cible }}
+  cancel-in-progress: false
+
+jobs:
+  ansible:
+    name: "${{ inputs.mode }} sur ${{ inputs.cible }}"
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.mode == 'apply' && 'production' || '' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer ansible
+        run: pip install ansible-core
+
+      - name: Installer les collections
+        run: ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Préparer la clé SSH
+        # Écrite hors du dépôt et en 0600 : ssh refuse une clé lisible par
+        # d'autres, et rien ne doit pouvoir se retrouver dans un artefact.
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploiement
+          chmod 600 ~/.ssh/deploiement
+          # La cle publique est derivee de la privee : un secret de moins a gerer.
+          ssh-keygen -y -f ~/.ssh/deploiement > ~/.ssh/deploiement.pub
+          ssh-keyscan -H "${{ vars.SERVEUR_IP }}" >> ~/.ssh/known_hosts
+
+      - name: Exécuter le playbook
+        working-directory: ansible
+        env:
+          ANSIBLE_FORCE_COLOR: "1"
+        run: |
+          ansible-playbook -i inventory/clients.yml site.yml \
+            --limit "${{ inputs.cible }}" \
+            -e ansible_ssh_private_key_file=$HOME/.ssh/deploiement \
+            -e cle_publique_admin=$HOME/.ssh/deploiement.pub \
+            ${{ inputs.mode == 'check' && '--check --diff' || '' }}
+
+      - name: Effacer la clé
+        if: always()
+        run: rm -f ~/.ssh/deploiement
