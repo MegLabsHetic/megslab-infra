@@ -1,0 +1,11 @@
+# Copier en terraform.tfvars, ignore par git.
+# Les valeurs de courrier se relisent dans le panel LWS, zone DNS. Ne pas les
+# retaper de memoire : une erreur sur SPF ou DKIM fait passer les messages en
+# indesirables sans qu'aucune erreur ne soit levee.
+
+zone_id     = "0123456789abcdef0123456789abcdef"
+ip_serveur  = "203.0.113.10"
+ip_courrier = "203.0.113.20"
+
+spf  = "v=spf1 mx:exemple.fr a:mail.exemple.fr a:mail.registrar.example -all"
+dkim = "v=DKIM1; k=rsa; p=REMPLACER_PAR_LA_VALEUR_EXACTE_DU_PANEL"
