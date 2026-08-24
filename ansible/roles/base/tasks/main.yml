@@ -1,0 +1,55 @@
+---
+# Socle : compte de service, outils indispensables, mises a jour automatiques.
+
+- name: Installer les paquets de base
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - git
+      - gnupg
+      - htop
+      - rsync
+      - unattended-upgrades
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Creer le compte de service applicatif
+  ansible.builtin.user:
+    name: "{{ utilisateur_app }}"
+    shell: /bin/bash
+    create_home: true
+    # Volontairement hors du groupe sudo : ce compte fait tourner des conteneurs,
+    # il n'administre pas la machine.
+    groups: []
+
+- name: Autoriser la meme cle sur le compte de service
+  ansible.posix.authorized_key:
+    user: "{{ utilisateur_app }}"
+    key: "{{ lookup('file', cle_publique_admin) }}"
+    state: present
+
+- name: Activer les mises a jour de securite automatiques
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+
+- name: Creer le repertoire de configuration de journald
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Limiter la taille des journaux systeme
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/taille.conf
+    mode: "0644"
+    content: |
+      [Journal]
+      SystemMaxUse=500M
+  notify: Redemarrer journald

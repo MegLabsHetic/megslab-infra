@@ -1,0 +1,81 @@
+---
+# SSH par cle uniquement, pare-feu ferme par defaut, bannissement des forceurs.
+
+- name: Installer ufw et fail2ban
+  ansible.builtin.apt:
+    name: [ufw, fail2ban]
+    state: present
+
+# --- SSH ---------------------------------------------------------------------
+
+# sshd retient la PREMIERE occurrence d'un mot-cle, et `sshd_config` inclut
+# `sshd_config.d/*.conf` en tete. Le fichier doit donc trier AVANT celui que
+# cloud-init depose (50-cloud-init.conf), sinon il est lu trop tard et ignore.
+- name: Durcir sshd
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-durcissement.conf
+    mode: "0644"
+    content: |
+      PermitRootLogin no
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PubkeyAuthentication yes
+      X11Forwarding no
+      MaxAuthTries 3
+    validate: sshd -t -f %s
+  notify: Redemarrer sshd
+
+# --- Pare-feu ----------------------------------------------------------------
+
+# L'ordre compte : on autorise SSH AVANT d'activer ufw, sinon la politique par
+# defaut coupe la connexion en cours et la machine devient injoignable.
+- name: Autoriser les ports publics
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ ports_ouverts }}"
+
+- name: Refuser tout le reste en entree
+  community.general.ufw:
+    state: enabled
+    policy: deny
+    direction: incoming
+
+# --- fail2ban ----------------------------------------------------------------
+
+- name: Configurer fail2ban sur sshd
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.d/sshd.local
+    mode: "0644"
+    content: |
+      [sshd]
+      enabled = true
+      maxretry = 4
+      findtime = 10m
+      bantime = 1h
+  notify: Redemarrer fail2ban
+
+- name: Activer fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: true
+
+# --- Verification ------------------------------------------------------------
+
+# Applique n'est pas effectif : `sshd -T` rend la configuration reellement
+# retenue par le demon, y compris ce que d'autres fichiers auraient impose.
+- name: Relire la configuration sshd effective
+  ansible.builtin.command: sshd -T
+  changed_when: false
+  register: sshd_effectif
+
+- name: Verifier que l'authentification par mot de passe est bien coupee
+  ansible.builtin.assert:
+    that:
+      - "'passwordauthentication no' in sshd_effectif.stdout"
+      - "'permitrootlogin no' in sshd_effectif.stdout"
+    fail_msg: >-
+      sshd accepte encore les mots de passe ou la connexion root. Un autre
+      fichier de sshd_config.d trie avant 00-durcissement.conf.
