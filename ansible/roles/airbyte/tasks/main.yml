@@ -1,0 +1,81 @@
+---
+# Airbyte, deploye par `abctl`. Ce role est marque `never` : il ne tourne que si
+# on le demande explicitement.
+#
+#   ansible-playbook site.yml --tags airbyte
+#
+# Pourquoi ce n'est pas dans le playbook par defaut : l'installation prend une
+# dizaine de minutes et la pile consomme environ 5,4 Go au repos. Ce n'est pas
+# une dependance de MegLabs, c'est un outil qu'on allume quand on synchronise.
+# Voir docs/adr/002.
+
+- name: Verifier la memoire disponible
+  # 5,4 Go mesures au repos, plus les conteneurs de connecteurs pendant une
+  # synchronisation. En dessous de 12 Go libres, l'installation reussit puis le
+  # plan de controle redemarre en boucle : mieux vaut echouer ici, clairement.
+  ansible.builtin.assert:
+    that: ansible_memtotal_mb >= 12000
+    fail_msg: >-
+      {{ (ansible_memtotal_mb / 1024) | round(1) }} Go de RAM sur cette machine.
+      Airbyte en demande 12 pour tenir a cote du reste. Utilise plutot des
+      connecteurs lances seuls (~0,5 Go) : voir docs/adr/002.
+
+- name: Verifier si abctl est deja installe
+  ansible.builtin.command: abctl version
+  register: abctl_present
+  changed_when: false
+  failed_when: false
+
+- name: Telecharger abctl
+  when: abctl_version not in (abctl_present.stdout | default(''))
+  ansible.builtin.unarchive:
+    src: >-
+      https://github.com/airbytehq/abctl/releases/download/{{ abctl_version }}/abctl-{{ abctl_version }}-linux-amd64.tar.gz
+    dest: /tmp
+    remote_src: true
+    creates: /tmp/abctl-{{ abctl_version }}-linux-amd64/abctl
+
+- name: Installer abctl
+  when: abctl_version not in (abctl_present.stdout | default(''))
+  ansible.builtin.copy:
+    src: /tmp/abctl-{{ abctl_version }}-linux-amd64/abctl
+    dest: /usr/local/bin/abctl
+    mode: "0755"
+    remote_src: true
+
+- name: Verifier si le cluster tourne deja
+  ansible.builtin.command: abctl local status
+  become_user: "{{ utilisateur_app }}"
+  register: airbyte_statut
+  changed_when: false
+  failed_when: false
+
+- name: Installer Airbyte
+  # Dix minutes environ. `--host` est indispensable : sans lui, Airbyte refuse
+  # les requetes portant un nom d'hote qu'il ne connait pas, et le proxy renvoie
+  # une erreur d'hote invalide au lieu de l'interface.
+  when: "'Existing cluster found' not in (airbyte_statut.stdout | default(''))"
+  ansible.builtin.command:
+    cmd: >-
+      abctl local install
+      --host {{ airbyte_hote }}
+      --port {{ airbyte_port }}
+  become_user: "{{ utilisateur_app }}"
+  register: airbyte_installation
+  changed_when: true
+  timeout: 1800
+
+- name: Relever les identifiants generes
+  # Ils ne sont pas choisis par nous : abctl les genere. On les lit plutot que
+  # de les fixer, et ils ne sont jamais ecrits dans le depot.
+  ansible.builtin.command: abctl local credentials
+  become_user: "{{ utilisateur_app }}"
+  register: airbyte_identifiants
+  changed_when: false
+
+- name: Rappeler ou les retrouver
+  ansible.builtin.debug:
+    msg:
+      - "Airbyte repond sur http://127.0.0.1:{{ airbyte_port }}, publie par le proxy sur https://{{ airbyte_hote }}"
+      - "Identifiants : `abctl local credentials` sur le serveur. Ils ne sont pas stockes ici."
+      - "Arreter la pile quand elle ne sert pas : `docker stop airbyte-abctl-control-plane`"

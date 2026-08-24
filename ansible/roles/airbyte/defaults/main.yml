@@ -1,0 +1,11 @@
+---
+# Version d'abctl, epinglee : une montee de version d'Airbyte migre le schema de
+# sa propre base et ne se defait pas.
+abctl_version: v0.30.0
+
+# Le nom d'hote qu'Airbyte accepte. Sans lui, il rejette les requetes venant du
+# proxy avec une erreur d'hote invalide.
+airbyte_hote: "airbyte.{{ domaine }}"
+
+# Port d'ecoute local. Rien ne le publie vers l'exterieur : seul Caddy y accede.
+airbyte_port: 8000
