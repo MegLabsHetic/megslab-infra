@@ -47,10 +47,13 @@ jobs:
           # que le dernier etat et laisse passer un secret deja committe.
           fetch-depth: 0
 
-      - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # L'action officielle `gitleaks-action` exige une licence payante des que
+      # le depot appartient a une organisation. L'outil lui-meme est sous MIT :
+      # on lance donc le binaire, via son image officielle.
+      - name: Scanner l'historique
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            detect --source=/repo --redact --no-banner --verbose
 
 permissions:
   contents: read
