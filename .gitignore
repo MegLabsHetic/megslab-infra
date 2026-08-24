@@ -1,0 +1,25 @@
+# Secrets et etats locaux
+*.retry
+vault-password
+.env
+*.tfvars
+!*.tfvars.example
+
+# OpenTofu / Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Editeurs
+.vscode/
+.idea/
+.DS_Store
+
+# Donnees d'infrastructure reelles : adresses, domaines, zones DNS.
+# Le depot porte le mecanisme, jamais l'infrastructure d'un client.
+ansible/inventory/host_vars/*.yml
+!ansible/inventory/host_vars/*.yml.example
+dns/*
+!dns/*.example
+!dns/README.md

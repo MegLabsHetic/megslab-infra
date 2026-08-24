@@ -1,0 +1,6 @@
+---
+# Collections utilisees par les roles. Installees par
+# `ansible-galaxy collection install -r requirements.yml`.
+collections:
+  - name: ansible.posix      # authorized_key
+  - name: community.general  # ufw
