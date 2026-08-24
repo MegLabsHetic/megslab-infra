@@ -1,0 +1,19 @@
+---
+# Variables partagees par toutes les machines. Ce qui varie d'un client a
+# l'autre vit dans inventory/host_vars/, jamais ici.
+
+# Compte de service qui fait tourner les conteneurs. Hors du groupe sudo.
+utilisateur_app: meglabs
+
+# Cle publique autorisee sur les comptes d'administration et de service.
+# Lue sur la machine qui execute Ansible, pas sur la cible.
+cle_publique_admin: ~/.ssh/id_ed25519_meglabs.pub
+
+ports_ouverts: [22, 80, 443]
+
+docker_architecture: amd64
+
+# Docker publie un depot par nom de version Ubuntu. Une version tres recente
+# peut ne pas encore avoir le sien : pointer alors sur la derniere LTS publiee.
+#   26.04 = resolute (verifie present sur download.docker.com)
+docker_nom_de_version: "{{ ansible_distribution_release }}"

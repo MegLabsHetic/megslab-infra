@@ -1,0 +1,38 @@
+---
+# Configuration complete d'un serveur MegLabs.
+#
+#   ansible-playbook site.yml --check --diff   # ce qui changerait, sans rien changer
+#   ansible-playbook site.yml                  # applique
+#
+# Ce playbook prepare la machine. Il ne deploie PAS l'application : le depot
+# applicatif est seul a connaitre ses images et ses variables.
+
+- name: Preparer un serveur MegLabs
+  hosts: all
+  become: true
+
+  pre_tasks:
+    - name: Verifier que la distribution est supportee
+      ansible.builtin.assert:
+        that: ansible_distribution == "Ubuntu"
+        fail_msg: >-
+          Les roles ciblent Ubuntu. Sur une autre distribution, les noms de
+          paquets et les chemins sshd different.
+
+  roles:
+    - base
+    - securite
+    - docker
+
+    # Marque `never` : ne tourne qu avec --tags airbyte. Voir roles/airbyte.
+    - role: airbyte
+      tags: [airbyte, never]
+
+  post_tasks:
+    - name: Resumer l'etat obtenu
+      ansible.builtin.debug:
+        msg:
+          - "Hote      : {{ ansible_hostname }} ({{ ansible_distribution }} {{ ansible_distribution_version }})"
+          - "Processeur: {{ ansible_processor_vcpus }} vCPU"
+          - "Memoire   : {{ (ansible_memtotal_mb / 1024) | round(1) }} Go"
+          - "Compte app: {{ utilisateur_app }}"

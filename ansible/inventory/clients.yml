@@ -1,0 +1,26 @@
+---
+# La STRUCTURE des parcs, sans aucune donnee de client.
+#
+# L'adresse, le domaine et les options de chaque machine vivent dans
+# host_vars/<nom>.yml, qui n'est pas versionne. Le depot porte le mecanisme,
+# jamais l'infrastructure d'un client.
+#
+#   cp inventory/host_vars/demo.yml.example inventory/host_vars/demo.yml
+#   ansible-playbook site.yml --limit demo
+
+all:
+  children:
+
+    # Nos propres machines : demonstration et developpement.
+    clients_interne:
+      hosts:
+        demo:
+
+    # Les instances facturees. Memes roles, memes garanties : ce qui distingue
+    # un client d'un autre tient entierement dans host_vars/.
+    clients_pro:
+      hosts: {}
+
+  vars:
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519_meglabs

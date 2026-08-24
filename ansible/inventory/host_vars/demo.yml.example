@@ -1,0 +1,15 @@
+---
+# Modele. Copier en <nom>.yml — ces fichiers ne sont jamais versionnes.
+
+# Adresse de la machine. Aucune IP ne figure dans le depot.
+ansible_host: 203.0.113.10
+
+domaine: exemple.fr
+email_acme: technique@exemple.fr
+
+# Les piles a deployer. `airbyte` coute ~5,4 Go au repos : ne l'activer que la
+# ou il sert reellement.
+piles:
+  - meglabs
+
+gabarit: petit
